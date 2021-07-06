@@ -1,0 +1,8 @@
+﻿<?xml version="1.0"?>
+<Connection>
+
+  <SQLSAP Server="VMTIMAC\MSSQLSERVER2014" Db="SBOMACOR" DbUser="sa" DbPwd="Expertone.1" Ruta="C:\temp"/>
+  <DI Server="VMTIMAC\MSSQLSERVER2014" LicenseServer="VMTIMAC:30000" database="SBOMACOR" UserName="manager" Password="expert" DbPassword="Expertone.1" DbUserName="sa"/>
+  <Ficheros  Log="C:\temp\" Albaran="" CheckList="C:\Desarrollo\MACOR\envio_mails_docs\rpt\Mantenimiento.rpt" ParteTrabajo="" FormatoC0030="" Pdfs="C:\Desarrollo\MACOR\envio_mails_docs\pdf\"/>
+  <Mail HTML="N" RutaBody="" SMTP="mail.innotecgrupo.com" PUERTO="587" USUARIOMAIL="sistemagestion@innotecgrupo.com" NOMBRE="Grupo Innotec" PWD="=h5k^+dP~D-%" />
+</Connection>
