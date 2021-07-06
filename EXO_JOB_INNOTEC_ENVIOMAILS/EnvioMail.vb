@@ -145,7 +145,7 @@ Public Class EnvioMail
                 oCRReport.SetParameterValue("DocKey@", docentry)
             End If
 
-
+            'ALGO
 
             'PONER USUARIO Y CONTRASEÑA
 
