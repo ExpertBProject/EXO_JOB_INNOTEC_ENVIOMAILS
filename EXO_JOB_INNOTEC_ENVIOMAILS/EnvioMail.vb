@@ -141,6 +141,14 @@ Public Class EnvioMail
 
                 oCRReport.SetParameterValue("nserie", InternalSN)
 
+            ElseIf sTextoTipoDoc = "Albaran" Then
+
+                Dim ssql As String = " select top 1 DocEntry" +
+                  " from " + empresa + ".dbo.ODLN t0 " +
+                  " where  t0.U_EXO_ClgCode='" + docentry + "'"
+                Dim sDocEntry As String = Conexiones.ExecuteSqlString(oDBSAP, ssql)
+
+                oCRReport.SetParameterValue("DocKey@", sDocEntry)
             Else
                 oCRReport.SetParameterValue("DocKey@", docentry)
             End If
