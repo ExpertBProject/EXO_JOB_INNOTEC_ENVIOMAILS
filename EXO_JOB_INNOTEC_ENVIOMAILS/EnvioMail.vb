@@ -26,7 +26,7 @@ Public Class EnvioMail
             Conexiones.Connect_SQLServer(oDBSAP, "SQLSAP")
 
             'lanzo la query para ver si hay algo pendiente. De ser así conecto ocompany y paso dt a la funcion
-            Dim sql As String = "select * from " + Conexiones._sSchema + ".dbo.[@EXO_SATIMP] WHERE isnull(U_EXO_ENV,'N')='N'"
+            Dim sql As String = "select T1.*, T0.[Phone1], T0.[E_Mail] from " + Conexiones._sSchema + ".dbo.[@EXO_SATIMP] T1, " + Conexiones._sSchema + ".dbo.OADM T0 WHERE isnull(U_EXO_ENV,'N')='N'"
 
             Conexiones.FillDtDB(oDBSAP, dtDocumentos, sql)
             olog.escribeMensaje("SQL:" + sql)
@@ -56,6 +56,8 @@ Public Class EnvioMail
         Dim pdfAlbaran As String = ""
         Dim pdfFormato As String = ""
         Dim bContinuar As Boolean = True
+        Dim ListpdfAlb As List(Of String) = New List(Of String)
+
         Try
 
             'comprobamos parte trabajo, hacemos pdf y anexamos
@@ -87,14 +89,26 @@ Public Class EnvioMail
             'comprobamos albaran, hacemos pdf y anexamos
             If row.Item("U_EXO_ALB").ToString() = "Y" Then
                 'buscamos el albaran asociado a la llamada
-                If GenerarPDF(pdfAlbaran, Conexiones.GetXMLValue("Ficheros", "Albaran"), Conexiones.GetXMLValue("Ficheros", "Pdfs"), row.Item("U_EXO_AVISO").ToString, row.Item("U_EXO_BD").ToString, "Albaran", oDBSAP, olog) Then
-                Else
-                    bContinuar = False
-                End If
+                Dim ssql As String = " select  DocEntry" +
+                  " from " + row.Item("U_EXO_BD").ToString + ".dbo.ODLN t0 " +
+                  " where  t0.U_EXO_ClgCode='" + row.Item("U_EXO_AVISO").ToString + "'"
+                Dim tabla2 As DataTable = New DataTable
+                Conexiones.FillDtDB(oDBSAP, tabla2, ssql)
+
+                For Each row2 As DataRow In tabla2.Rows
+                    pdfAlbaran = ""
+                    If GenerarPDF(pdfAlbaran, Conexiones.GetXMLValue("Ficheros", "Albaran"), Conexiones.GetXMLValue("Ficheros", "Pdfs"), row2.Item("DocEntry").ToString, row.Item("U_EXO_BD").ToString, "Albaran", oDBSAP, olog) Then
+                        ListpdfAlb.Add(pdfAlbaran)
+                    Else
+                        bContinuar = False
+                    End If
+                Next
+
+
             End If
 
             If bContinuar Then
-                If EnviarEmail(row.Item("U_EXO_MAIL").ToString(), row.Item("U_EXO_AVISO").ToString, pdfParte, pdfChekList, pdfFormato, pdfAlbaran, oDBSAP, olog) Then
+                If EnviarEmail(row.Item("U_EXO_MAIL").ToString(), row.Item("U_EXO_AVISO").ToString, pdfParte, pdfChekList, pdfFormato, ListpdfAlb, row.Item("E_Mail").ToString, row.Item("Phone1").ToString, oDBSAP, olog) Then
                     ActualizarRegistroEnvioMails(oCompany, row.Item("Code").ToString)
                 End If
             End If
@@ -141,14 +155,18 @@ Public Class EnvioMail
 
                 oCRReport.SetParameterValue("nserie", InternalSN)
 
+                ssql = " select t2.itemCode " +
+                    " from " + empresa + ".dbo.OCLG t0 " +
+                    " INNER JOIN " + empresa + ".dbo.OSCL T2 on T0.parentId=T2.callID And T0.parentType=191" +
+                    " where  t0.ClgCode='" + docentry + "'"
+                Dim Articulo As String = Conexiones.ExecuteSqlString(oDBSAP, ssql)
+                ' olog.escribeMensaje("sn " + InternalSN + " articulo " + Articulo)
+                oCRReport.SetParameterValue("Articulo", Articulo)
+
             ElseIf sTextoTipoDoc = "Albaran" Then
 
-                Dim ssql As String = " select top 1 DocEntry" +
-                  " from " + empresa + ".dbo.ODLN t0 " +
-                  " where  t0.U_EXO_ClgCode='" + docentry + "'"
-                Dim sDocEntry As String = Conexiones.ExecuteSqlString(oDBSAP, ssql)
 
-                oCRReport.SetParameterValue("DocKey@", sDocEntry)
+                oCRReport.SetParameterValue("DocKey@", docentry)
             Else
                 oCRReport.SetParameterValue("DocKey@", docentry)
             End If
@@ -186,7 +204,7 @@ Public Class EnvioMail
         End Try
     End Function
 
-    Private Shared Function EnviarEmail(dirmail As String, Actividad As String, Parte As String, CheckList As String, FormatoC0030 As String, Albaran As String, oDBSAP As SqlConnection, olog As EXO_Log.EXO_Log) As Boolean
+    Private Shared Function EnviarEmail(dirmail As String, Actividad As String, Parte As String, CheckList As String, FormatoC0030 As String, Albaran As List(Of String), MailEmpresa As String, Tlf As String, oDBSAP As SqlConnection, olog As EXO_Log.EXO_Log) As Boolean
 
         Dim correo As New System.Net.Mail.MailMessage()
         Dim adjunto As System.Net.Mail.Attachment
@@ -197,7 +215,7 @@ Public Class EnvioMail
 
         Try
 
-            correo.From = New System.Net.Mail.MailAddress(Conexiones.GetXMLValue("Mail", "USUARIOMAIL"), Conexiones.GetXMLValue("Mail", "NOMBRE"))
+            correo.From = New System.Net.Mail.MailAddress(MailEmpresa, Conexiones.GetXMLValue("Mail", "NOMBRE"))
             correo.To.Add(dirmail)
 
             If Parte <> "" Then
@@ -215,9 +233,12 @@ Public Class EnvioMail
                 correo.Attachments.Add(adjunto)
             End If
 
-            If Albaran <> "" Then
-                adjunto = New System.Net.Mail.Attachment(Albaran)
-                correo.Attachments.Add(adjunto)
+            If Albaran.Count > 0 Then
+                For Each sdocAlb As String In Albaran
+                    adjunto = New System.Net.Mail.Attachment(sdocAlb)
+                    correo.Attachments.Add(adjunto)
+                Next
+
             End If
 
             If Conexiones.GetXMLValue("Mail", "HTML") = "Y" Then
@@ -230,8 +251,7 @@ Public Class EnvioMail
                 cuerpo = "Estimado cliente, " + Chr(13) + Chr(13)
 
                 cuerpo = cuerpo + "Le adjuntamos documentación referente al aviso " + Actividad + "." + Chr(13)
-                cuerpo = cuerpo + "Para más información contacte con su gestora o en el email XXXXXX.com. " + Chr(13) + Chr(13)
-                cuerpo = cuerpo + "Nuestro horario de atención al cliente es de lunes a viernes XXXX0h a XXXX0h." + Chr(13)
+                cuerpo = cuerpo + "Para más información contacte al telefono " + Tlf + " o email " + MailEmpresa + ". " + Chr(13) + Chr(13)
                 cuerpo = cuerpo + "Este email se ha generado automáticamente, no responda al mismo." + Chr(13) + Chr(13)
                 'cuerpo = cuerpo + "Quicesa S.A."
 
