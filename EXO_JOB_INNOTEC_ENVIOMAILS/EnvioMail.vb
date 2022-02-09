@@ -6,6 +6,7 @@ Imports SAPbobsCOM
 
 Imports CrystalDecisions.Shared
 Imports CrystalDecisions.CrystalReports
+Imports System.Net
 
 Public Class EnvioMail
 
@@ -57,7 +58,8 @@ Public Class EnvioMail
         Dim pdfFormato As String = ""
         Dim bContinuar As Boolean = True
         Dim ListpdfAlb As List(Of String) = New List(Of String)
-
+        Dim ListpdfCheck As List(Of String) = New List(Of String)
+        Dim tabla2 As DataTable = New DataTable
         Try
 
             'comprobamos parte trabajo, hacemos pdf y anexamos
@@ -68,15 +70,40 @@ Public Class EnvioMail
                 End If
             End If
 
+            ''comprobamos checklist, hacemos pdf y anexamos
+            'If row.Item("U_EXO_CL").ToString() = "Y" Then
+            '    olog.escribeMensaje("entramos a checklist")
+
+            '    Dim ssql As String = " select  DocEntry" +
+            '      " from " + row.Item("U_EXO_BD").ToString + ".dbo.[@EXO_CHEKLISTAVISO] t0 " +
+            '      " where  t0.U_EXO_ClgCode='" + row.Item("U_EXO_AVISO").ToString + "'"
+            '    tabla2 = New DataTable
+            '    Conexiones.FillDtDB(oDBSAP, tabla2, ssql)
+
+            '    For Each row2 As DataRow In tabla2.Rows
+            '        pdfChekList = ""
+            '        If GenerarPDF(pdfChekList, Conexiones.GetXMLValue("Ficheros", "CheckList"), Conexiones.GetXMLValue("Ficheros", "Pdfs"), row2.Item("DocEntry").ToString, row.Item("U_EXO_BD").ToString, "CheckList", oDBSAP, olog) Then
+            '            ListpdfCheck.Add(pdfChekList)
+            '        Else
+            '            bContinuar = False
+            '        End If
+            '    Next
+
+            'End If
+
             'comprobamos checklist, hacemos pdf y anexamos
             If row.Item("U_EXO_CL").ToString() = "Y" Then
                 olog.escribeMensaje("entramos a checklist")
+
+                pdfChekList = ""
                 If GenerarPDF(pdfChekList, Conexiones.GetXMLValue("Ficheros", "CheckList"), Conexiones.GetXMLValue("Ficheros", "Pdfs"), row.Item("U_EXO_AVISO").ToString, row.Item("U_EXO_BD").ToString, "CheckList", oDBSAP, olog) Then
+                    ListpdfCheck.Add(pdfChekList)
                 Else
                     bContinuar = False
-                End If
 
+                End If
             End If
+
 
             'comprobamos formato, hacemos pdf y anexamos
             If row.Item("U_EXO_FORM").ToString() = "Y" Then
@@ -92,7 +119,7 @@ Public Class EnvioMail
                 Dim ssql As String = " select  DocEntry" +
                   " from " + row.Item("U_EXO_BD").ToString + ".dbo.ODLN t0 " +
                   " where  t0.U_EXO_ClgCode='" + row.Item("U_EXO_AVISO").ToString + "'"
-                Dim tabla2 As DataTable = New DataTable
+                tabla2 = New DataTable
                 Conexiones.FillDtDB(oDBSAP, tabla2, ssql)
 
                 For Each row2 As DataRow In tabla2.Rows
@@ -108,7 +135,7 @@ Public Class EnvioMail
             End If
 
             If bContinuar Then
-                If EnviarEmail(row.Item("U_EXO_MAIL").ToString(), row.Item("U_EXO_AVISO").ToString, pdfParte, pdfChekList, pdfFormato, ListpdfAlb, row.Item("E_Mail").ToString, row.Item("Phone1").ToString, oDBSAP, olog) Then
+                If EnviarEmail(row.Item("U_EXO_MAIL").ToString(), row.Item("U_EXO_AVISO").ToString, pdfParte, ListpdfCheck, pdfFormato, ListpdfAlb, row.Item("E_Mail").ToString, row.Item("Phone1").ToString, oDBSAP, olog) Then
                     ActualizarRegistroEnvioMails(oCompany, row.Item("Code").ToString)
                 End If
             End If
@@ -165,7 +192,6 @@ Public Class EnvioMail
 
             ElseIf sTextoTipoDoc = "Albaran" Then
 
-
                 oCRReport.SetParameterValue("DocKey@", docentry)
             Else
                 oCRReport.SetParameterValue("DocKey@", docentry)
@@ -204,7 +230,7 @@ Public Class EnvioMail
         End Try
     End Function
 
-    Private Shared Function EnviarEmail(dirmail As String, Actividad As String, Parte As String, CheckList As String, FormatoC0030 As String, Albaran As List(Of String), MailEmpresa As String, Tlf As String, oDBSAP As SqlConnection, olog As EXO_Log.EXO_Log) As Boolean
+    Private Shared Function EnviarEmail(dirmail As String, Actividad As String, Parte As String, CheckList As List(Of String), FormatoC0030 As String, Albaran As List(Of String), MailEmpresa As String, Tlf As String, oDBSAP As SqlConnection, olog As EXO_Log.EXO_Log) As Boolean
 
         Dim correo As New System.Net.Mail.MailMessage()
         Dim adjunto As System.Net.Mail.Attachment
@@ -223,9 +249,11 @@ Public Class EnvioMail
                 correo.Attachments.Add(adjunto)
             End If
 
-            If CheckList <> "" Then
-                adjunto = New System.Net.Mail.Attachment(CheckList)
-                correo.Attachments.Add(adjunto)
+            If CheckList.Count > 0 Then
+                For Each sdocChk As String In CheckList
+                    adjunto = New System.Net.Mail.Attachment(sdocChk)
+                    correo.Attachments.Add(adjunto)
+                Next
             End If
 
             If FormatoC0030 <> "" Then
@@ -263,6 +291,7 @@ Public Class EnvioMail
             correo.IsBodyHtml = True
             correo.Priority = System.Net.Mail.MailPriority.Normal
 
+            System.Net.ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12
             Dim smtp As New System.Net.Mail.SmtpClient
 
             smtp.Host = Conexiones.GetXMLValue("Mail", "SMTP")
