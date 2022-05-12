@@ -13,7 +13,7 @@ Public Class Conexiones
     Public Shared _sRutaFicheros As String = ""
 #End Region
 
-
+    'prueba
 #Region "Connect to Company"
 
     Public Shared Sub Connect_Company(ByRef oCompany As SAPbobsCOM.Company, ByVal _sEmpresa As String, ByRef olog As EXO_Log.EXO_Log)
