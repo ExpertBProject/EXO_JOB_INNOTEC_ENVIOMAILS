@@ -7,6 +7,7 @@ Imports SAPbobsCOM
 Imports CrystalDecisions.Shared
 Imports CrystalDecisions.CrystalReports
 Imports System.Net
+Imports System.Net.Mail
 
 Public Class EnvioMail
 
@@ -135,8 +136,9 @@ Public Class EnvioMail
             End If
 
             If bContinuar Then
-                If EnviarEmail(row.Item("U_EXO_MAIL").ToString(), row.Item("U_EXO_AVISO").ToString, pdfParte, ListpdfCheck, pdfFormato, ListpdfAlb, row.Item("E_Mail").ToString, row.Item("Phone1").ToString, oDBSAP, olog) Then
-                    ActualizarRegistroEnvioMails(oCompany, row.Item("Code").ToString)
+                Dim RegistroError As String = ""
+                If EnviarEmail(row.Item("U_EXO_MAIL").ToString(), row.Item("U_EXO_AVISO").ToString, pdfParte, ListpdfCheck, pdfFormato, ListpdfAlb, row.Item("E_Mail").ToString, row.Item("Phone1").ToString, oDBSAP, RegistroError, olog) Then
+                    ActualizarRegistroEnvioMails(oCompany, row.Item("Code").ToString, RegistroError)
                 End If
             End If
 
@@ -230,7 +232,7 @@ Public Class EnvioMail
         End Try
     End Function
 
-    Private Shared Function EnviarEmail(dirmail As String, Actividad As String, Parte As String, CheckList As List(Of String), FormatoC0030 As String, Albaran As List(Of String), MailEmpresa As String, Tlf As String, oDBSAP As SqlConnection, olog As EXO_Log.EXO_Log) As Boolean
+    Private Shared Function EnviarEmail(dirmail As String, Actividad As String, Parte As String, CheckList As List(Of String), FormatoC0030 As String, Albaran As List(Of String), MailEmpresa As String, Tlf As String, oDBSAP As SqlConnection, ByRef RegistroError As String, olog As EXO_Log.EXO_Log) As Boolean
 
         Dim correo As New System.Net.Mail.MailMessage()
         Dim adjunto As System.Net.Mail.Attachment
@@ -326,10 +328,15 @@ Public Class EnvioMail
 
             Return True
 
+        Catch ex As SmtpException
+            EnviarEmail = False
+            RegistroError = dirmail & " " & Actividad & " " & ex.Message
+            olog.escribeMensaje("Error enviando correo: " & dirmail & " " & Actividad & " " & ex.Message, EXO_Log.EXO_Log.Tipo.error)
+
         Catch ex As Exception
 
             EnviarEmail = False
-
+            RegistroError = dirmail & " " & Actividad & " " & ex.Message
             olog.escribeMensaje("Error enviando correo: " & dirmail & " " & Actividad & " " & ex.Message, EXO_Log.EXO_Log.Tipo.error)
 
         End Try
@@ -338,13 +345,14 @@ Public Class EnvioMail
 
     End Function
 
-    Private Shared Sub ActualizarRegistroEnvioMails(oCompany As Company, Code As String)
+    Private Shared Sub ActualizarRegistroEnvioMails(oCompany As Company, Code As String, RegistroError As String)
         Try
             Dim oUserTable As SAPbobsCOM.UserTable
 
             oUserTable = oCompany.UserTables.Item("EXO_SATIMP")
             oUserTable.GetByKey(Code)
             oUserTable.UserFields.Fields.Item("U_EXO_ENV").Value = "Y"
+            oUserTable.UserFields.Fields.Item("U_EXO_COMLOG").Value = RegistroError
 
             If oUserTable.Update() = 0 Then
 
